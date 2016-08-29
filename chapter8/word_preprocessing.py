@@ -32,3 +32,9 @@ def remove_stopwords(text_ary):
 
 def get_stopwords():
     return stop
+
+
+def tokenizer_online(text):
+    text = preprocessor(text)
+    tokenized = [w for w in text.split() if w not in stop]
+    return tokenized
