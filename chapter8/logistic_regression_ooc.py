@@ -53,7 +53,7 @@ import os
 from word_preprocessing import get_stopwords
 
 stop = get_stopwords()
-dest = os.path.join('../chapter9', 'pkl_objects')
+dest = os.path.join('../chapter9/movieclassifier', 'pkl_objects')
 if not os.path.exists(dest):
     os.makedirs(dest)
 pickle.dump(stop,
