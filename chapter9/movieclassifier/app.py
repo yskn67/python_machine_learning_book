@@ -6,6 +6,7 @@ import os
 
 
 from vectorizer import vect
+from update import update_model
 
 
 app = Flask(__name__)
@@ -81,4 +82,5 @@ def feedback():
 
 
 if __name__ == '__main__':
+    clf = update_model(db_path=db, model=clf, batch_size=10000)
     app.run(debug=True)
