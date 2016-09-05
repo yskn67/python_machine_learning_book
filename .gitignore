@@ -90,3 +90,4 @@ ENV/
 
 # Untrack huge dataset
 movie_data.csv
+mnist/
