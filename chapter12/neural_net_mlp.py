@@ -135,3 +135,89 @@ class NeuralNetMLP(object):
                 self.w2 -= (delta_w2 + (self.alpha * delta_w2_prev))
                 delta_w1_prev, delta_w2_prev = delta_w1, delta_w2
         return self
+
+
+class MLPGradientCheck(NeuralNetMLP):
+
+    def _gradient_checking(self, X, y_enc, w1, w2, epsilon, grad1, grad2):
+        num_grad1 = np.zeros(np.shape(w1))
+        epsilon_ary1 = np.zeros(np.shape(w1))
+        for i in range(w1.shape[0]):
+            for j in range(w1.shape[1]):
+                epsilon_ary1[i, j] = epsilon
+                a1, z2, a2, z3, a3 = self._feedforward(X, w1 - epsilon_ary1, w2)
+                cost1 = self._get_cost(y_enc, a3, w1 - epsilon_ary1, w2)
+                a1, z2, a2, z3, a3 = self._feedforward(X, w1 + epsilon_ary1, w2)
+                cost2 = self._get_cost(y_enc, a3, w1 + epsilon_ary1, w2)
+                num_grad1[i, j] = (cost2 - cost1) / (2 * epsilon)
+                epsilon_ary1[i, j] = 0
+
+        num_grad2 = np.zeros(np.shape(w2))
+        epsilon_ary2 = np.zeros(np.shape(w2))
+        for i in range(w2.shape[0]):
+            for j in range(w2.shape[1]):
+                epsilon_ary2[i, j] = epsilon
+                a1, z2, a2, z3, a3 = self._feedforward(X, w1, w2 - epsilon_ary2)
+                cost1 = self._get_cost(y_enc, a3, w1, w2 - epsilon_ary2)
+                a1, z2, a2, z3, a3 = self._feedforward(X, w1, w2 + epsilon_ary2)
+                cost2 = self._get_cost(y_enc, a3, w1, w2 + epsilon_ary2)
+                num_grad2[i, j] = (cost2 - cost1) / (2 * epsilon)
+                epsilon_ary2[i, j] = 0
+
+        num_grad = np.hstack((num_grad1.flatten(), num_grad2.flatten()))
+        grad = np.hstack((grad1.flatten(), grad2.flatten()))
+        norm1 = np.linalg.norm(num_grad - grad)
+        norm2 = np.linalg.norm(num_grad)
+        norm3 = np.linalg.norm(grad)
+        relative_error = norm1 / (norm2 + norm3)
+        return relative_error
+
+    def fit(self, X, y, print_progress=False):
+        self.cost_ = []
+        X_data, y_data = X.copy(), y.copy()
+        y_enc = self._encode_labels(y, self.n_output)
+        delta_w1_prev = np.zeros(self.w1.shape)
+        delta_w2_prev = np.zeros(self.w2.shape)
+        for i in range(self.epochs):
+            self.eta /= (1 + self.decrease_const * i)
+            if print_progress:
+                sys.stderr.write('\rEpoche: %d/%d' % (i + 1, self.epochs))
+                sys.stderr.flush()
+            if self.shuffle:
+                idx = np.random.permutation(y_data.shape[0])
+                X_data, y_enc = X_data[idx], y_enc[:, idx]
+            mini = np.array_split(range(y_data.shape[0]), self.minibatches)
+            for idx in mini:
+                # ff
+                a1, z2, a2, z3, a3 = self._feedforward(X_data[idx],
+                                                       self.w1,
+                                                       self.w2)
+                cost = self._get_cost(y_enc=y_enc[:, idx],
+                                      output=a3,
+                                      w1=self.w1,
+                                      w2=self.w2)
+                # bp
+                grad1, grad2 = self._get_gradient(a1=a1, a2=a2, a3=a3, z2=z2,
+                                                  y_enc=y_enc[:, idx],
+                                                  w1=self.w1,
+                                                  w2=self.w2)
+                # gradient check
+                grad_diff = self._gradient_checking(X=X_data[idx],
+                                                    y_enc=y_enc[:, idx],
+                                                    w1=self.w1, w2=self.w2,
+                                                    epsilon=1e-5,
+                                                    grad1=grad1, grad2=grad2)
+                if grad_diff <= 1e-7:
+                    print('Ok: %s' % grad_diff)
+                elif grad_diff <= 1e-4:
+                    print('Warning: %s' % grad_diff)
+                else:
+                    print('PROBLEM: %s' % grad_diff)
+
+                self.cost_.append(cost)
+                # update
+                delta_w1, delta_w2 = self.eta * grad1, self.eta * grad2
+                self.w1 -= (delta_w1 + (self.alpha * delta_w1_prev))
+                self.w2 -= (delta_w2 + (self.alpha * delta_w2_prev))
+                delta_w1_prev, delta_w2_prev = delta_w1, delta_w2
+        return self
